@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Local run artefacts and captures
+research/captures/
+research/out/
+*.pcap
+*.log
+!research/notes/*.log
+
+# Talk deck — kept out of the repo on purpose, distributed separately
+slides/
+
+# Lab
+lab/www/uploads/
+lab/data/
+*.sqlite
+*.db
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets and local config
+.env
+.env.*
+!lab/*.env.example
+
+__pycache__/
+*.pyc
+.venv/
+venv/

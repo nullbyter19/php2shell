@@ -1,0 +1,69 @@
+# PHP2Shell lab — vulnerable target + fixed control.
+#
+#   docker compose up -d                 # 8.5.11 (target) + 8.5.12 (control)
+#   docker compose --profile asan up -d  # AddressSanitizer build (slow, optional)
+#   docker compose down -v               # clean everything
+#
+# Determinism notes:
+#   - mpm_prefork with a single worker guarantees producer and consumer hit the SAME
+#     process. In production this is a race; here it is an invariant for the talk.
+#   - The official "apache" PHP image already uses mod_php + prefork.
+
+services:
+  victim-vuln:
+    image: php:8.5.11-apache
+    container_name: p2s-victim-8511
+    ports:
+      - "127.0.0.1:8511:80"
+    volumes:
+      - ./www:/var/www/html:ro
+      - ./php/vuln.ini:/usr/local/etc/php/conf.d/zz-p2s.ini:ro
+      - ./apache/mpm_prefork.conf:/etc/apache2/mods-available/mpm_prefork.conf:ro
+    environment:
+      - P2S_DEBUG=1
+    healthcheck:
+      test: ["CMD", "php", "-r", "echo 'ok';"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  victim-fixed:
+    image: php:8.5.12-apache
+    container_name: p2s-victim-8512
+    ports:
+      - "127.0.0.1:8512:80"
+    volumes:
+      - ./www:/var/www/html:ro
+      - ./php/fixed.ini:/usr/local/etc/php/conf.d/zz-p2s.ini:ro
+      - ./apache/mpm_prefork.conf:/etc/apache2/mods-available/mpm_prefork.conf:ro
+    environment:
+      - P2S_DEBUG=1
+    healthcheck:
+      test: ["CMD", "php", "-r", "echo 'ok';"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Instrumented variant — building from source is slow (~15 min) and is the only
+  # honest way to "see" the UAF. Profile only.
+  # ---------------------------------------------------------------------------
+  victim-asan:
+    profiles: ["asan"]
+    build:
+      context: ./asan
+      args:
+        PHP_VERSION: "8.5.11"
+    container_name: p2s-victim-asan
+    ports:
+      - "127.0.0.1:8513:80"
+    volumes:
+      - ./www:/var/www/html:ro
+      - ./php/asan.ini:/usr/local/etc/php/conf.d/zz-p2s.ini:ro
+      - ./apache/mpm_prefork.conf:/etc/apache2/mods-available/mpm_prefork.conf:ro
+    environment:
+      - ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:symbolize=1:log_path=/var/log/apache2/asan
+      - USE_ZEND_ALLOC=0
+    restart: "no"

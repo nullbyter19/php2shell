@@ -1,0 +1,43 @@
+# PHP2Shell — lab target (Ubuntu Server 24.04 + Docker).
+#
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose restart      # between exploit runs
+#   docker compose down -v
+#
+# The image tag is NOT arbitrary. php:8.5.11-apache is the build that has a
+# *verified* RCE profile in the public toolkit (php-8.5.11-bookworm-amd64). A PHP
+# compiled by hand on Ubuntu 24.04 produces another libphp.so, with another heap,
+# and would need recalibration — impractical minutes before a talk.
+#
+# Apache is configured in apache-lab.conf (1 worker), not in mpm_prefork.conf:
+# conf-enabled/ is read after mods-enabled/, so the values there win.
+
+services:
+  victim:
+    image: php:8.5.11-apache
+    container_name: p2s-ubuntu-victim
+    restart: unless-stopped
+
+    # Publishes on the network so Kali can reach it. Lab: do not expose this on a
+    # network you do not control (see the README, section "Tear down").
+    ports:
+      - "${P2S_PORT:-8080}:80"
+
+    volumes:
+      # Docroot = the "Photo Drop" application (editable without a rebuild).
+      - ../app:/var/www/html
+      # Uploads stay OUTSIDE the docroot: the demo must show only the engine bug.
+      - ../storage:/var/www/storage
+      # Lab php.ini (chain preconditions) and the 1-worker Apache.
+      - ./php.ini:/usr/local/etc/php/conf.d/zz-p2s.ini:ro
+      - ./apache-lab.conf:/etc/apache2/conf-enabled/zz-p2s.conf:ro
+
+    environment:
+      # Enables /ping.php (pid/version/arch). Lab only.
+      - P2S_DEBUG=1
+
+    # No healthcheck on purpose: a probe that opens a socket and does not send a
+    # request line occupies the single worker until the Timeout (60 s) — and the
+    # lab needs that worker free. Verification is done with curl
+    # (install.sh/verify.sh).
